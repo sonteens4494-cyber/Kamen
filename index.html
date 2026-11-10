@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>เงาแห่งละแวก — Animation Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14100f;--pn:#241b19;--ln:#3b2d29;--tx:#E7DCC7;--gd:#D69B36;--rd:#9E2525}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--tx);font-family:Prompt,Kanit,"Noto Sans Thai",system-ui,sans-serif}
+body{min-height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+main{max-width:900px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:20px;margin:4px 0;color:var(--gd)}
+.stage{background:#000;border-radius:10px;display:flex;justify-content:center;align-items:center;min-height:200px}
+canvas{max-width:100%;max-height:58dvh;width:auto;height:auto;display:block}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select,.file{min-height:48px;padding:0 14px;border-radius:10px;border:1px solid var(--ln);background:var(--pn);color:var(--tx);font:inherit;font-size:15px;display:inline-flex;align-items:center;justify-content:center}
+button.p{background:var(--rd);border-color:var(--rd);font-weight:800}
+input[type=file]{display:none}input[type=range]{flex:1;min-width:120px;height:48px;accent-color:var(--gd)}
+.box{background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:10px;font-size:14px;line-height:1.5}
+.sm{font-size:12px;opacity:.8}.err{color:#ff8a7a}.ok{color:#9be28b}
+.sync{display:flex;align-items:center;gap:6px;border-top:1px solid var(--ln);padding:4px 0;font-size:13px}.sync span{flex:1}.sync button{min-height:48px;padding:0 10px}
+.tabs button{min-height:48px;padding:0 10px;font-size:13px}
+video{width:100%;max-height:60dvh;background:#000;border-radius:10px}
+progress{width:100%;height:14px}
+</style></head><body><main>
+<h1>เงาแห่งละแวก · SHADOWS OF LONGVEK</h1>
+<div class="box"><b>1. นำเข้าเสียงพากย์</b><div class="row" style="margin-top:6px"><label class="file">เลือกไฟล์เสียง (MP3/WAV)<input id="f" type="file" accept="audio/*,.mp3"></label></div><div id="ai" class="sm">ยังไม่ได้นำเข้าเสียง — เวลาโดยประมาณ ยังไม่ซิงก์กับเสียงจริง (11 ตัวอักษร/วินาที)</div></div>
+<div class="stage" id="stg"><canvas id="cv" width="540" height="960"></canvas></div>
+<div class="row"><button id="pl" class="p">▶ เล่น</button><button id="mu">🔊</button><button id="fs">เต็มจอ</button><span id="tm" class="sm">0:00</span><input id="sk" type="range" min="0" max="1000" value="0"></div>
+<div class="row tabs" id="tabs"></div>
+<div class="box"><b>2. เลือกขนาดวิดีโอ</b><div class="row" style="margin-top:6px"><select id="fm"><option value="9:16">9:16 Reels/Stories</option><option value="4:5">4:5 Feed</option><option value="1:1">1:1 Square</option><option value="16:9">16:9 Landscape</option></select><select id="rs"><option value="720">720p</option><option value="1080">1080p</option></select><label class="row sm"><input id="sz" type="checkbox"> Safe zone</label></div></div>
+<details class="box"><summary>ปรับจุดซิงก์ (ซิงก์ประมาณจากเสียง ไม่ใช่ forced alignment)</summary><div id="sy"></div></details>
+<div class="box"><b>3. สร้างวิดีโอ</b><div class="row" style="margin-top:6px"><button id="ex" class="p">สร้างวิดีโอ</button><button id="cx" hidden>ยกเลิก</button></div><progress id="pg" value="0" max="1" hidden></progress><div id="st" class="sm">เปิดหน้าเว็บค้างไว้จนกว่าจะ Export เสร็จ (บันทึกแบบเรียลไทม์)</div></div>
+<div id="rz" class="box" hidden><b>ผลลัพธ์</b><video id="vd" controls playsinline></video><div id="ri" class="sm"></div><div class="row"><button id="sh" class="p">บันทึก/แชร์</button><a id="dl" class="file" style="text-decoration:none">ดาวน์โหลด</a></div><div class="sm">iOS: ใช้ Share Sheet แล้วเลือก “บันทึกวิดีโอ” หรือเปิดจากแอป Files</div></div>
+<div id="cap" class="box sm"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id),cv=$('cv'),g=cv.getContext('2d');
+const CH={C1:{sk:'#c68a58',hr:'#18110f',cl:'#9E2525',ar:'#D69B36',sa:'#7a1717',bun:1},C2:{sk:'#b57c3e',hr:'#15110f',cl:'#263B57',ar:'#a9803f',sa:'#1a2c48',lg:1},C3:{sk:'#dcaa78',hr:'#1a1412',cl:'#D7BFA0',ar:0,sa:'#26382D',sc:1}};
+const S=[
+{nm:'The Mystery of Longvek',k:'city',n:'ทำไม...เมืองละแวก ถึงกล้าท้าทายกรุงศรีอยุธยาซ้ำแล้วซ้ำเล่า?\n\nทั้งที่รู้ว่า...การทำสงครามกับอาณาจักรใหญ่อาจหมายถึงการสูญเสียบ้านเมือง!',hl:['เมืองละแวก','กรุงศรีอยุธยา','สูญเสียบ้านเมือง'],a:[['C3',.5,.75,'think','curious',0]],cd:{t:'title_card',ti:'เงาแห่งละแวก',sub:'เมื่ออำนาจนำไปสู่สงคราม',at:'เมืองละแวก'},cam:'push',sfx:['whoosh','boom'],am:'wind'},
+{nm:'Two Kingdoms',k:'map',n:'ย้อนกลับไปในอดีต เมืองละแวกไม่ได้เป็นเพียงเมืองเล็ก ๆ แต่เป็นศูนย์กลางทางการเมืองและการค้าสำคัญของกัมพูชา\n\nขณะที่อยุธยาก็กำลังรักษาอำนาจเหนือหัวเมืองและเส้นทางยุทธศาสตร์ในภูมิภาค',hl:['ศูนย์กลางทางการเมือง','การค้า','อยุธยา','เส้นทางยุทธศาสตร์'],a:[['C3',.5,.8,'point','thinking',0]],cd:{t:'map_route',ti:'อุษาคเนย์ในอดีต',at:'เมืองละแวก'},cam:'push',sfx:['paper','click']},
+{nm:'The Struggle for Power',k:'room2',n:'สองอาณาจักรต่างมีสิ่งที่ต้องปกป้อง...และต่างต้องการรักษาอำนาจของตนเอง',hl:['สองอาณาจักร','ปกป้อง','รักษาอำนาจ'],a:[['C1',.25,.72,'think','serious',0],['C2',.75,.72,'think','determined',1]],cam:'pan',sfx:['heartbeat'],am:'room'},
+{nm:'Historical Records',k:'archive',n:'ในบันทึกประวัติศาสตร์ฝ่ายอยุธยา มีเรื่องราวการยกทัพของฝ่ายละแวกเข้ามาโจมตีอยุธยาและหัวเมืองหลายครั้ง\n\nแต่ทำไมถึงต้องทำเช่นนั้น?',hl:['บันทึกประวัติศาสตร์','ฝ่ายละแวก','โจมตี','ทำไม'],a:[['C3',.55,.75,'think','confused',0]],ex:[['แต่ทำไมถึงต้องทำเช่นนั้น?','curious']],cd:{t:'notebook',ti:'หลักฐานทางประวัติศาสตร์',at:'บันทึกประวัติศาสตร์'},cam:'push2',sfx:['paper','click'],am:'room'},
+{nm:'Political Motives',k:'trade',n:'คำตอบอาจไม่ได้มีแค่ความเกลียดชัง\n\nเพราะในโลกการเมืองยุคนั้น อำนาจเหนือเมืองต่าง ๆ กำลังคน เส้นทางการค้า และความมั่นคงของราชบัลลังก์ ล้วนเป็นเดิมพันสำคัญ',hl:['ความเกลียดชัง','อำนาจ','กำลังคน','เส้นทางการค้า','ราชบัลลังก์'],a:[['C3',.5,.76,'point','serious',0]],cd:{t:'list',ti:'เดิมพันแห่งอำนาจ',it:['เมืองและอำนาจ','กำลังคน','เส้นทางการค้า','ความมั่นคงของราชบัลลังก์'],at:'กำลังคน'},cam:'pan',sfx:['coin','whoosh'],am:'city'},
+{nm:'The Great War',k:'battle',n:'เมื่อความขัดแย้งสะสมมากขึ้น สงครามครั้งใหญ่จึงเกิดขึ้น\n\nในที่สุด กรุงศรีอยุธยาก็ยกทัพเข้าตีเมืองละแวกในสมัยสมเด็จพระนเรศวร',hl:['สงครามครั้งใหญ่','กรุงศรีอยุธยา','เมืองละแวก','สมเด็จพระนเรศวร'],a:[['C1',.3,.75,'run','determined',0],['C2',.75,.75,'react','serious',1]],cd:{t:'text',ti:'สมัยสมเด็จพระนเรศวร',at:'สมเด็จพระนเรศวร'},cam:'pan',sfx:['boom','hit','footstep'],am:'wind',flash:1},
+{nm:'History Is More Complex',k:'archive',n:'แต่เรื่องราวไม่ได้จบลงง่าย ๆ อย่างที่เราเคยเรียนกัน\n\nเพราะประวัติศาสตร์ที่แท้จริงยังมีรายละเอียดจากหลักฐานหลายฝ่ายให้ค้นหาและตรวจสอบ',hl:['ไม่ได้จบลงง่าย ๆ','หลักฐานหลายฝ่าย','ตรวจสอบ'],a:[['C3',.5,.74,'think','serious',0]],ex:[['ตรวจสอบ','curious']],cd:{t:'compare',ti:'มองประวัติศาสตร์หลายมุม',it:['หลักฐานฝ่ายอยุธยา','หลักฐานฝ่ายกัมพูชา','หลักฐานจากนักเดินทางและต่างชาติ'],at:'หลักฐานหลายฝ่าย'},cam:'push',sfx:['paper','sparkle'],am:'room'},
+{nm:'The Final Question',k:'final',n:'แล้วตกลง...เมืองละแวกเป็นฝ่ายรุกรานอยุธยา หรือเป็นเพียงอีกอาณาจักรหนึ่งที่กำลังต่อสู้เพื่อรักษาอำนาจของตัวเอง?\n\nคุณคิดอย่างไร?',hl:['เมืองละแวก','ฝ่ายรุกราน','รักษาอำนาจ','คุณคิดอย่างไร'],a:[['C3',.5,.73,'point','curious',0]],ex:[['คุณคิดอย่างไร?','smirk']],cd:{t:'end_card',ti:'คุณคิดอย่างไร?',sub:'ร่วมแสดงความคิดเห็น',at:'คุณคิดอย่างไร?'},cam:'push2',sfx:['whoosh','ding'],am:'wind'}];
+const ff='Prompt,Kanit,"Noto Sans Thai",system-ui,sans-serif',AC=window.AudioContext||window.webkitAudioContext;
+let ctx,A=null,env=[],pauses=[],t0=0,t1=0,total=0,Bb=[],off=Array(9).fill(0),Bm=[],snapped=[],playing=false,pausedAt=0,startT=0,ses=null,muted=false,exporting=false,dirty=true,T=0,fname='',rec=null,cancelled=false,wl=null,musN=null,safe=false;
+// ---------- sync ----------
+const wts=S.map(s=>s.n.replace(/\s/g,'').length),wsum=wts.reduce((a,b)=>a+b,0);
+function compute(){
+ if(A){t1=t1||A.duration}else{t0=0;t1=wsum/11}
+ total=(A?A.duration:t1)+2.5;let c=0;Bb=[0];snapped=[1];
+ for(let k=1;k<8;k++){c+=wts[k-1];let v=t0+(t1-t0)*c/wsum,best=null;
+  if(A)for(const p of pauses)if(Math.abs(p-v)<1.5&&(best===null||Math.abs(p-v)<Math.abs(best-v)))best=p;
+  snapped[k]=best!==null;Bb[k]=best!==null?best:v}
+ Bb[8]=total;recalc();}
+function recalc(){Bm=Bb.map((b,k)=>k==0||k==8?b:b+off[k]);for(let k=1;k<8;k++)Bm[k]=Math.min(Math.max(Bm[k],Bm[k-1]+.3),total-.3);dirty=true;rsync()}
+function rsync(){$('sy').innerHTML=S.map((s,i)=>`<div class="sync"><span>${i+1}. ${s.nm}<br>${Bm[i].toFixed(2)}–${Bm[i+1].toFixed(2)}s · ${!A?'ยังไม่ซิงก์':off[i]?'ปรับเอง':snapped[i]?'approximate':'needs adjustment'}</span>${i?`<button data-i="${i}" data-d="-0.1">-0.1</button><button data-i="${i}" data-d="0.1">+0.1</button>`:''}</div>`).join('')}
+$('sy').onclick=e=>{const b=e.target.closest('button');if(!b)return;off[+b.dataset.i]+=+b.dataset.d;recalc();if(playing)restart(now())}
+// ---------- audio import ----------
+function ensure(){if(!AC)throw Error('เบราว์เซอร์ไม่รองรับ AudioContext');if(!ctx||ctx.state=='closed')ctx=new AC();if(ctx.state=='suspended')ctx.resume();return ctx}
+$('f').onchange=async e=>{const f=e.target.files[0];if(!f)return;const ai=$('ai');ai.className='sm';ai.textContent='กำลังอ่านไฟล์...';
+ try{const c=ensure(),ab=await f.arrayBuffer();ai.textContent='กำลัง decode เสียง...';
+  const buf=await new Promise((res,rej)=>c.decodeAudioData(ab,res,rej));A=buf;ai.textContent='กำลังวิเคราะห์เสียง...';await new Promise(r=>setTimeout(r,30));
+  analyze();compute();$('sk').value=0;seek(0);
+  ai.innerHTML=`${f.name} · ${(f.size/1048576).toFixed(2)} MB · ${f.type||'audio'} · ${buf.duration.toFixed(2)}s · ${buf.sampleRate}Hz · ${buf.numberOfChannels}ch<br><span class="ok">วิเคราะห์เสียงแล้ว</span> สถานะซิงก์: approximate (ประมาณจากบทและช่วงเงียบ ไม่ใช่ forced alignment — ตรวจและปรับได้ที่แผงซิงก์)`;
+ }catch(x){A=null;ai.className='sm err';ai.textContent='อ่านหรือ decode ไฟล์ไม่สำเร็จ: ไฟล์อาจเสีย หรือเบราว์เซอร์ไม่รองรับ ลองไฟล์ MP3/WAV อื่น ('+(x.message||x)+')';compute()}};
+function analyze(){const d=A.getChannelData(0),w=Math.round(A.sampleRate*.02),n=Math.floor(d.length/w),r=new Float32Array(n);
+ for(let i=0;i<n;i++){let s=0;for(let j=0;j<w;j++){const v=d[i*w+j];s+=v*v}r[i]=Math.sqrt(s/w)}
+ const so=Array.from(r).sort((a,b)=>a-b),p95=so[Math.floor(n*.95)]||1e-4,th=p95*.08;
+ env=Array.from(r,v=>Math.min(1,v/p95));let a=0,b=n-1;while(a<n&&r[a]<th)a++;while(b>0&&r[b]<th)b--;t0=a*.02;t1=(b+1)*.02;pauses=[];
+ let run=0;for(let i=a;i<=b;i++){if(r[i]<th)run++;else{if(run>=11)pauses.push((i-run/2)*.02);run=0}}}
+// ---------- audio engine ----------
+let nb=null;function noiseBuf(){if(!nb){nb=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate);const d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}return nb}
+function tone(o,w,f0,f1,d,v,ty){const c=ctx,s=c.createOscillator(),gn=c.createGain();s.type=ty||'sine';s.frequency.setValueAtTime(f0,w);s.frequency.exponentialRampToValueAtTime(Math.max(1,f1),w+d);gn.gain.setValueAtTime(0,w);gn.gain.linearRampToValueAtTime(v,w+.01);gn.gain.exponentialRampToValueAtTime(.0001,w+d);s.connect(gn);gn.connect(o);s.start(w);s.stop(w+d+.05)}
+function nz(o,w,d,f,q,v,ty,f2){const c=ctx,s=c.createBufferSource(),fl=c.createBiquadFilter(),gn=c.createGain();s.buffer=noiseBuf();fl.type=ty;fl.frequency.setValueAtTime(f,w);if(f2)fl.frequency.exponentialRampToValueAtTime(f2,w+d);fl.Q.value=q;gn.gain.setValueAtTime(0,w);gn.gain.linearRampToValueAtTime(v,w+d*.3);gn.gain.linearRampToValueAtTime(0,w+d);s.connect(fl);fl.connect(gn);gn.connect(o);s.start(w,0,d+.05)}
+function sfx(o,n,w){const v=.4;({whoosh:()=>nz(o,w,.6,300,1,v,'bandpass',2500),boom:()=>tone(o,w,90,28,.9,v*1.6),paper:()=>nz(o,w,.25,3000,.5,v*.6,'highpass'),click:()=>tone(o,w,1400,900,.04,v*.5,'square'),heartbeat:()=>{tone(o,w,60,40,.15,v*1.4);tone(o,w+.22,55,38,.15,v*1.2)},hit:()=>{nz(o,w,.15,900,1,v,'lowpass');tone(o,w,140,50,.2,v)},footstep:()=>[0,.3,.6].forEach(x=>tone(o,w+x,100,50,.1,v*.8)),coin:()=>{tone(o,w,1500,1500,.1,v*.5,'triangle');tone(o,w+.08,2000,2000,.25,v*.5,'triangle')},ding:()=>tone(o,w,1568,1560,.9,v*.6),sparkle:()=>[0,.07,.14].forEach((x,i)=>tone(o,w+x,2200+i*400,2200+i*400,.25,v*.3,'triangle'))})[n]?.()}
+function amb(o,n,w,d){const c=ctx,s=c.createBufferSource(),fl=c.createBiquadFilter(),gn=c.createGain();s.buffer=noiseBuf();s.loop=true;fl.type='lowpass';fl.frequency.value={wind:500,room:250,city:900}[n]||400;gn.gain.setValueAtTime(0,w);gn.gain.linearRampToValueAtTime(.1,w+.5);gn.gain.setValueAtTime(.1,w+d-.5);gn.gain.linearRampToValueAtTime(0,w+d);s.connect(fl);fl.connect(gn);gn.connect(o);s.start(w);s.stop(w+d)}
+function startAudio(from,dest){
+ const c=ensure();stopAudio();const bus=c.createGain(),mn=c.createGain(),cp=c.createDynamicsCompressor(),base=c.currentTime+.06;mn.gain.value=muted?0:1;bus.connect(mn);mn.connect(cp);cp.connect(c.destination);if(dest)bus.connect(dest);
+ const vg=c.createGain(),mg=c.createGain(),sg=c.createGain();vg.gain.value=1;sg.gain.value=1;mg.gain.value=.14;vg.connect(bus);mg.connect(bus);sg.connect(bus);
+ ses={bus,mn,src:null};startT=base-from;let src=null;
+ if(A&&from<A.duration){src=c.createBufferSource();src.buffer=A;src.connect(vg);src.start(base,from);ses.src=src}
+ mg.gain.setValueAtTime(.14,base);mg.gain.setTargetAtTime(.07,Math.max(base,startT+t0),.3);mg.gain.setTargetAtTime(.1,Math.max(base,startT+t1),.8);
+ const ch=[[146.8,174.6,220],[116.5,146.8,174.6],[174.6,220,261.6],[130.8,164.8,196]],bt=.6;
+ for(let b=Math.floor(from/bt);b*bt<total;b++){const tt=b*bt;if(tt<from)continue;const w=startT+tt,sc=Bm.findIndex((x,k)=>k<8&&tt>=x&&tt<Bm[k+1]),q=(sc==3||sc==7)?.6:1,war=sc==5,cd=ch[Math.floor(b/4)%4];
+  if(b%4==0)cd.forEach(f=>tone(mg,w,f,f,2.4,.05*q,'sawtooth'));tone(mg,w,cd[0]/2,cd[0]/2,.5,.12*q,'triangle');
+  if(war||(b%4==0&&q==1))tone(mg,w,90,40,.3,war?.25:.12);if(war&&b%2==1)nz(mg,w,.1,2000,1,.05,'highpass')}
+ S.forEach((s,i)=>{if(Bm[i+1]<from)return;s.sfx.forEach((n,k)=>{const tt=Bm[i]+.25+k*.5;if(tt>=from)sfx(sg,n,startT+tt)});if(s.am){const st=Math.max(Bm[i],from);amb(sg,s.am,startT+st,Bm[i+1]-st)}});
+}
+function stopAudio(){if(ses){try{ses.src&&ses.src.stop()}catch(e){}try{ses.bus.disconnect()}catch(e){}ses=null}}
+// ---------- playback ----------
+const now=()=>playing?ctx.currentTime-startT:pausedAt;
+function playFrom(f,dest){if(f>=total-.05)f=0;startAudio(f,dest);playing=true;$('pl').textContent='⏸ หยุด'}
+function pause(at){stopAudio();playing=false;pausedAt=at;$('pl').textContent='▶ เล่น';dirty=true}
+function restart(f){playFrom(f)}
+function seek(v){T=v;if(playing&&!exporting)restart(v);else pausedAt=v;dirty=true}
+$('pl').onclick=()=>{try{ensure();playing?pause(now()):playFrom(pausedAt)}catch(e){msg(e.message,1)}};
+$('mu').onclick=()=>{muted=!muted;$('mu').textContent=muted?'🔇':'🔊';if(ses)ses.mn.gain.value=muted?0:1};
+$('sk').oninput=e=>seek(e.target.value/1000*total);
+$('tabs').innerHTML=S.map((s,i)=>`<button data-i="${i}">ฉาก ${i+1}</button>`).join('');
+$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)seek(Bm[+b.dataset.i]+.05)};
+const stg=$('stg'),rf=stg.requestFullscreen||stg.webkitRequestFullscreen;if(!rf)$('fs').hidden=true;$('fs').onclick=()=>rf.call(stg);
+$('sz').onchange=e=>{safe=e.target.checked;dirty=true};
+function msg(t,e){const s=$('st');s.className='sm '+(e?'err':'');s.textContent=t}
+// ---------- format ----------
+const D={'9:16':[1080,1920],'4:5':[1080,1350],'1:1':[1080,1080],'16:9':[1920,1080]};
+function dims(){const d=D[$('fm').value],k=$('rs').value==720?2/3:1;return[Math.round(d[0]*k),Math.round(d[1]*k)]}
+function sizeCv(full){const d=dims(),k=full?1:Math.min(1,540/Math.min(d[0],d[1])*(d[0]>d[1]?1:1));cv.width=Math.round(d[0]*(full?1:.5*($('rs').value==720?1.5:1)));cv.height=Math.round(d[1]*(full?1:.5*($('rs').value==720?1.5:1)));dirty=true}
+$('fm').onchange=$('rs').onchange=()=>sizeCv(false);
+// ---------- drawing helpers ----------
+const rr=(x,y,w,h,r)=>{g.beginPath();g.roundRect?g.roundRect(x,y,w,h,r):g.rect(x,y,w,h)};
+const ease=x=>1-Math.pow(1-x,3);
+function sky(W,H,c){const l=g.createLinearGradient(0,0,0,H);c.forEach((x,i)=>l.addColorStop(i/(c.length-1),x));g.fillStyle=l;g.fillRect(-W*.2,0,W*1.4,H)}
+const Ly=(cx,s,f)=>{g.save();g.translate(-cx*s,0);f();g.restore()};
+function prang(x,y,w,h,c1,c2){g.fillStyle=c1;for(let k=0;k<5;k++){const ww=w*(1-k*.17),hh=h/5,yy=y-hh*k;g.beginPath();g.moveTo(x-ww/2,yy);g.lineTo(x-ww*.4,yy-hh);g.lineTo(x+ww*.4,yy-hh);g.lineTo(x+ww/2,yy);g.fill()}g.fillStyle=c2;g.beginPath();g.moveTo(x-w*.08,y-h);g.lineTo(x,y-h*1.22);g.lineTo(x+w*.08,y-h);g.fill()}
+function wall(x,y,w,h,c){g.fillStyle=c;g.fillRect(x,y,w,h);for(let i=0;i<w/(h*.18);i++)g.fillRect(x+i*h*.18,y-h*.08,h*.1,h*.09)}
+function flag(x,y,h,t,col){g.fillStyle='#2a1a12';g.fillRect(x,y,h*.03,h);g.fillStyle=col;g.beginPath();g.moveTo(x+h*.03,y);for(let i=0;i<=10;i++)g.lineTo(x+h*.03+i*h*.04,y+Math.sin(t*4+i*.6)*h*.03);for(let i=10;i>=0;i--)g.lineTo(x+h*.03+i*h*.04,y+h*.3+Math.sin(t*4+i*.6)*h*.03);g.fill()}
+function glow(x,y,r,c,a){const q=g.createRadialGradient(x,y,0,x,y,r);q.addColorStop(0,c);q.addColorStop(1,'rgba(0,0,0,0)');g.globalAlpha=a;g.fillStyle=q;g.fillRect(x-r,y-r,r*2,r*2);g.globalAlpha=1}
+function ele(x,y,s,t){g.fillStyle='#4b4a55';g.strokeStyle='#1a1214';g.lineWidth=s*.04;for(let k=0;k<4;k++){const a=Math.sin(t*3+k*1.6)*.25,lx=x+(k%2?.55:-.7)*s+(k>1?s*.2:0);g.save();g.translate(lx,y-s*.9);g.rotate(a);g.fillRect(-s*.14,0,s*.28,s*.9);g.restore()}
+ g.beginPath();g.ellipse(x,y-s*1.2,s*1.1,s*.8,0,0,7);g.fill();g.beginPath();g.ellipse(x+s*1.15,y-s*1.45,s*.5,s*.5,0,0,7);g.fill();g.lineWidth=s*.22;g.lineCap='round';g.strokeStyle='#4b4a55';g.beginPath();g.moveTo(x+s*1.5,y-s*1.3);g.quadraticCurveTo(x+s*1.7,y-s*.5,x+s*1.4+Math.sin(t*2)*s*.15,y-s*.3);g.stroke();g.fillStyle='#9E2525';g.fillRect(x-s*.5,y-s*2.1,s*.9,s*.4);g.fillStyle='#D69B36';g.fillRect(x-s*.5,y-s*2.15,s*.9,s*.08)}
+function dust(t,W,H,n,col){g.fillStyle=col;for(let k=0;k<n;k++){g.globalAlpha=.25;g.beginPath();g.arc((k*97.3+t*(10+k%4*6))%W,(k*131.7+Math.sin(t+k)*20+t*(k%3)*4)%H,1.5+k%3,0,7);g.fill()}g.globalAlpha=1}
+// ---------- backgrounds ----------
+function bg(sc,t,p,W,H){const cx=(p-.5)*W*.1,k=sc.k,gy=H*.8;
+ if(k=='city'||k=='battle'||k=='final'){
+  sky(W,H,k=='battle'?['#c98a4b','#e8b86a','#f2d9a0']:k=='final'?['#263B57','#9E2525','#D69B36']:['#263B57','#9E2525','#D69B36']);
+  glow(W*.5,H*.52,W*.5,'#ffd27a',.7);g.fillStyle='#ffd88a';g.beginPath();g.arc(W*.5,H*.52,W*.1,0,7);g.fill();
+  g.fillStyle='rgba(255,230,190,.25)';for(let i=0;i<4;i++){g.beginPath();g.ellipse((i*W*.35+t*14)%(W*1.3)-W*.15,H*(.15+i*.08),W*.2,H*.025,0,0,7);g.fill()}
+  Ly(cx,.5,()=>{g.fillStyle='#3a2a3c';g.beginPath();g.moveTo(-W*.2,gy);for(let i=0;i<=14;i++)g.lineTo(-W*.2+i*W*.11,gy-H*(.1+.05*Math.sin(i*1.3)));g.lineTo(W*1.2,gy);g.fill()});
+  Ly(cx,1,()=>{if(k=='final'){prang(W*.17,gy,W*.2,H*.2,'#2a1f2c','#D69B36');prang(W*.83,gy,W*.2,H*.2,'#1d2a3d','#D69B36');wall(W*.05,gy-H*.04,W*.9,H*.04,'#2a1f2c')}
+   else{wall(0,gy-H*.12,W,H*.12,'#4a2a2a');[.18,.5,.82].forEach((x,i)=>prang(W*x,gy-H*.12,W*.2,H*.18+i%2*H*.05,'#3b2226','#D69B36'));if(k=='city')for(let i=0;i<3;i++)glow(W*(.18+i*.32),gy-H*.1,W*.05,'#ffb347',.6+.3*Math.sin(t*9+i))}
+   if(k=='battle'){ele(W*(.62+.04*Math.sin(t*.5)),gy+H*.02,W*.09,t);for(let i=0;i<14;i++){const x=(i*W*.075+t*20)%(W*1.1);g.strokeStyle='#2a1a12';g.lineWidth=2;g.beginPath();g.moveTo(x,gy+H*.02);g.lineTo(x+W*.01,gy-H*.1);g.stroke();g.fillStyle='#2a1a12';g.fillRect(x-4,gy-H*.03,10,H*.05)}}});
+  g.fillStyle='#26382D';g.fillRect(0,gy,W,H-gy);glow(W*.5,gy,W*.6,'rgba(214,155,54,.5)',.4);
+  if(k=='battle'){flag(W*.1,H*.3,H*.2,t,'#9E2525');flag(W*.88,H*.32,H*.2,t+1,'#263B57')}
+  if(k=='city')flag(W*.75,H*.35,H*.15,t,'#9E2525');
+  Ly(cx,1.3,()=>{g.strokeStyle='#120c10';g.lineCap='round';for(const s of[-1,1]){const bx=s<0?-W*.05:W*1.05;g.lineWidth=W*.02;g.beginPath();g.moveTo(bx,H*.05);g.quadraticCurveTo(bx-s*W*.2,H*.12,bx-s*W*.35,H*.22+Math.sin(t*1.5)*8);g.stroke();g.fillStyle='#120c10';for(let i=0;i<6;i++){g.beginPath();g.ellipse(bx-s*W*(.08+i*.05),H*(.12+i*.015)+Math.sin(t*2+i)*6,W*.03,W*.012,.5*s,0,7);g.fill()}}});
+  if(k=='final'){g.fillStyle='#E7DCC7';rr(W*.3,H*.9,W*.4,H*.04,6);g.fill()}
+ }else if(k=='map'){
+  sky(W,H,['#E7DCC7','#D7BFA0']);g.strokeStyle='#7a5a3a';g.lineWidth=6;rr(W*.05,H*.05,W*.9,H*.9,14);g.stroke();g.lineWidth=2;rr(W*.07,H*.07,W*.86,H*.86,10);g.stroke();
+  Ly(cx,.5,()=>{g.fillStyle='rgba(120,150,120,.35)';g.beginPath();g.moveTo(W*.1,H*.3);g.bezierCurveTo(W*.3,H*.2,W*.6,H*.25,W*.9,H*.4);g.lineTo(W*.85,H*.7);g.bezierCurveTo(W*.6,H*.6,W*.4,H*.75,W*.15,H*.6);g.fill();g.strokeStyle='rgba(60,110,150,.6)';g.lineWidth=5;g.beginPath();g.moveTo(W*.4,H*.2);g.bezierCurveTo(W*.35,H*.4,W*.5,H*.5,W*.45,H*.7);g.stroke()});
+  Ly(cx,1,()=>{const a=[W*.32,H*.45],b=[W*.68,H*.58],q=Math.min(1,p*2.2);g.setLineDash([14,10]);g.strokeStyle='#9E2525';g.lineWidth=5;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(a[0]+(b[0]-a[0])*q,a[1]+(b[1]-a[1])*q);g.stroke();g.setLineDash([]);
+   [[a,'อยุธยา','#263B57'],[b,'ละแวก','#9E2525']].forEach(([m,l,c],i)=>{const s=Math.min(1,Math.max(0,p*4-i*.8));g.fillStyle=c;g.beginPath();g.arc(m[0],m[1],W*.03*ease(s),0,7);g.fill();g.fillStyle='#26382D';g.font=`800 ${W*.05}px ${ff}`;g.textAlign='center';g.globalAlpha=s;g.fillText(l,m[0],m[1]-W*.05);g.globalAlpha=1})});
+  g.fillStyle='#26382D';g.beginPath();g.arc(W*.85,H*.15,W*.04,0,7);g.stroke();g.font=`${W*.025}px ${ff}`;g.textAlign='center';g.globalAlpha=.6;g.fillText('แผนผังประกอบ ไม่ใช่แผนที่ตามมาตราส่วน',W*.5,H*.93);g.globalAlpha=1;
+ }else if(k=='room2'||k=='archive'){
+  const two=k=='room2';sky(W,H,two?['#2a1c18','#3d2a1e']:['#2c1f18','#4a3322']);
+  if(two){g.fillStyle='rgba(158,37,37,.25)';g.fillRect(0,0,W/2,H);g.fillStyle='rgba(38,59,87,.35)';g.fillRect(W/2,0,W/2,H);g.fillStyle='#D69B36';g.fillRect(W/2-2,0,4,H)}
+  Ly(cx,.5,()=>{for(let i=0;i<4;i++){g.fillStyle='#5a3a22';g.fillRect(W*(.08+i*.28),0,W*.07,gy);g.fillStyle='#D69B36';g.fillRect(W*(.08+i*.28),H*.2,W*.07,H*.02);g.fillRect(W*(.08+i*.28),H*.6,W*.07,H*.02)}});
+  Ly(cx,1,()=>{if(!two)for(let r=0;r<3;r++)for(let i=0;i<9;i++){g.fillStyle=['#9E2525','#263B57','#D69B36','#26382D','#D7BFA0'][(i+r)%5];g.fillRect(W*.06+i*W*.1,H*(.2+r*.13),W*.07,H*.1)}
+   else[W*.15,W*.85].forEach((x,i)=>{g.fillStyle=i?'#263B57':'#9E2525';g.beginPath();g.moveTo(x-W*.05,H*.1);g.lineTo(x+W*.05,H*.1);g.lineTo(x+W*.05,H*.3+Math.sin(t*2+i)*8);g.lineTo(x,H*.27);g.lineTo(x-W*.05,H*.3);g.fill()})});
+  g.fillStyle='#1d130e';g.fillRect(0,gy,W,H-gy);[.1,.9].forEach((x,i)=>glow(W*x,H*.3,W*.35,'#ffb347',.55+.15*Math.sin(t*9+i*2)));
+  Ly(cx,1.3,()=>{g.fillStyle='#5a3a22';g.fillRect(W*.15,H*.84,W*.7,H*.04);g.fillStyle='#E7DCC7';g.fillRect(W*.25,H*.82,W*.5,H*.025);for(let i=0;i<2;i++){g.fillStyle='#f5e6c0';g.fillRect(W*(.2+i*.58),H*.78,W*.03,H*.06);glow(W*(.215+i*.58),H*.77,W*.06,'#ffcf6a',.8)}});
+ }else if(k=='trade'){
+  sky(W,H,['#7fb7d6','#E7DCC7']);Ly(cx,.5,()=>{g.fillStyle='#8a9a8a';g.beginPath();g.moveTo(-W*.1,H*.5);for(let i=0;i<10;i++)g.lineTo(i*W*.12,H*(.42+.04*Math.sin(i)));g.lineTo(W*1.2,H*.5);g.fill();wall(0,H*.46,W,H*.06,'#9b8468')});
+  g.fillStyle='#3f7f93';g.fillRect(0,H*.52,W,H*.2);g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=2;for(let i=0;i<12;i++){const y=H*(.54+i*.015);g.beginPath();for(let x=0;x<=W;x+=30)g.lineTo(x,y+Math.sin(x*.05+t*2+i)*3);g.stroke()}
+  Ly(cx,1,()=>{for(let i=0;i<3;i++){const x=(t*30+i*W*.45)%(W*1.4)-W*.2,y=H*(.6+i*.03);g.fillStyle='#5a3a22';g.beginPath();g.moveTo(x,y);g.lineTo(x+W*.22,y);g.lineTo(x+W*.18,y+H*.03);g.lineTo(x+W*.04,y+H*.03);g.fill();g.fillStyle='#D7BFA0';g.fillRect(x+W*.09,y-H*.07,W*.01,H*.07);g.beginPath();g.moveTo(x+W*.1,y-H*.07);g.lineTo(x+W*.17,y-H*.01);g.lineTo(x+W*.1,y-H*.01);g.fill()}});
+  g.fillStyle='#8a6a48';g.fillRect(0,H*.72,W,H*.28);Ly(cx,1.3,()=>{[[.1,'#9E2525'],[.5,'#263B57'],[.82,'#D69B36']].forEach(([x,c],i)=>{g.fillStyle=c;g.beginPath();g.moveTo(W*(x-.1),H*.8);g.lineTo(W*(x+.1),H*.8);g.lineTo(W*(x+.07),H*.74);g.lineTo(W*(x-.07),H*.74);g.fill();g.fillStyle='#4a3020';g.fillRect(W*(x-.08),H*.8,W*.02,H*.1);g.fillRect(W*(x+.06),H*.8,W*.02,H*.1);g.fillStyle='#c9a24a';g.beginPath();g.arc(W*x,H*.92,W*.025,0,7);g.fill()})});
+ }}
+// ---------- character ----------
+function limb(x,y,a,b,l1,l2,w,col){const x1=x+Math.sin(a)*l1,y1=y+Math.cos(a)*l1,x2=x1+Math.sin(b)*l2,y2=y1+Math.cos(b)*l2;g.lineCap=g.lineJoin='round';for(const[c,k]of[['#1a1214',.16],[col,0]]){g.strokeStyle=c;g.lineWidth=w+(c=='#1a1214'?w*.3:0);g.beginPath();g.moveTo(x,y);g.lineTo(x1,y1);g.lineTo(x2,y2);g.stroke()}return[x2,y2]}
+function person(id,x,y,h,pose,face,flip,t,mo,talk){
+ const c=CH[id],u=h/7;g.save();g.translate(x,y);if(flip)g.scale(-1,1);
+ g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(0,0,u*1.1,u*.2,0,0,7);g.fill();
+ const run=pose=='run',bob=Math.sin(t*2.2)*u*.04-(run?Math.abs(Math.sin(t*10))*u*.18:0),hy=-u*3.4+bob,sy=-u*5.1+bob,hdy=-u*6.2+bob,la=run?Math.sin(t*10)*.8:Math.sin(t*1.4)*.03;
+ limb(-u*.25,hy,-la,-la*.4,u*1.6,u*1.6,u*.42,c.cl=='#D7BFA0'?'#5a4a3a':'#2a1a1a');limb(u*.25,hy,la,la*.3,u*1.6,u*1.6,u*.42,c.cl=='#D7BFA0'?'#5a4a3a':'#2a1a1a');
+ const sw=Math.sin(t*1.8)*.08;let la1=[.15+sw,.3],ra=[-.15-sw,-.3];
+ if(pose=='think')la1=[.6,2.7];else if(pose=='point')la1=[1.9,2+Math.sin(t*4)*.08];else if(run)la1=[Math.sin(t*10)*1.1,Math.sin(t*10)*1.1+.6];else if(pose=='react')la1=[2.4,2.7+Math.sin(t*8)*.1];
+ if(run)ra=[-Math.sin(t*10)*1.1,-Math.sin(t*10)*1.1+.6];else if(pose=='react')ra=[-2.4,-2.7];
+ const sd=.4;limb(-u*.55,sy+u*.15,ra[0],ra[1],u*1.1,u*1.0,u*.36,c.sk);
+ if(c.bun==undefined&&c.lg==undefined);if(c.sc){g.fillStyle='#E7DCC7';g.fillRect(-u*1.1,sy+u*1.3,u*.4,u*.9)}else{g.strokeStyle='#d8d8e0';g.lineWidth=u*.08;g.beginPath();g.moveTo(-u*.5,hy-u*.1);g.lineTo(u*.7,hy+u*1.6);g.stroke()}
+ g.fillStyle=c.cl;g.strokeStyle='#1a1214';g.lineWidth=u*.07;g.beginPath();g.moveTo(-u*.7,sy);g.lineTo(u*.7,sy);g.lineTo(u*.55,hy);g.lineTo(-u*.55,hy);g.closePath();g.fill();g.stroke();
+ if(c.ar){g.fillStyle=c.ar;g.fillRect(-u*.62,sy+u*.05,u*1.24,u*.5);g.fillRect(-u*.72,sy-u*.05,u*.2,u*.4);g.fillRect(u*.52,sy-u*.05,u*.2,u*.4)}else{g.fillStyle=c.sa;g.fillRect(-u*.12,sy,u*.24,hy-sy)}
+ g.fillStyle=c.sa;g.fillRect(-u*.58,hy-u*.28,u*1.16,u*.34);g.beginPath();g.moveTo(u*.3,hy);g.lineTo(u*.5,hy+u*.9+Math.sin(t*3)*u*.1);g.lineTo(u*.1,hy+u*.9);g.fill();
+ limb(u*.55,sy+u*.15,la1[0],la1[1],u*1.1,u*1.0,u*.36,c.sk);
+ if(c.lg){g.fillStyle=c.hr;g.beginPath();g.ellipse(-u*.1,hdy+u*.4,u*.75,u*1.1,0,0,7);g.fill()}
+ if(c.bun){g.fillStyle=c.hr;g.beginPath();g.arc(-u*.62,hdy-u*.3+Math.sin(t*2)*u*.03,u*.28,0,7);g.fill()}
+ g.fillStyle=c.sk;g.strokeStyle='#1a1214';g.lineWidth=u*.07;g.fillRect(-u*.18,hdy+u*.4,u*.36,u*.5);g.beginPath();g.ellipse(0,hdy,u*.6,u*.68,0,0,7);g.fill();g.stroke();
+ g.fillStyle=c.hr;g.beginPath();g.moveTo(-u*.64,hdy+u*.05);g.bezierCurveTo(-u*.7,hdy-u*.9,u*.7,hdy-u*.9,u*.64,hdy+u*.05);g.lineTo(u*.4,hdy-u*.25);g.lineTo(u*.1,hdy-u*.4);g.lineTo(-u*.2,hdy-u*.2);g.lineTo(-u*.45,hdy-u*.35);g.closePath();g.fill();
+ const bl=(t%3.3)<.12?.1:1;for(const s of[-1,1]){const ex=s*u*.25+u*.06,ey=hdy+u*.08;g.fillStyle='#fff';g.beginPath();g.ellipse(ex,ey,u*.13,u*.17*bl,0,0,7);g.fill();g.fillStyle='#2a1810';g.beginPath();g.ellipse(ex+u*.02,ey,u*.09,u*.15*bl,0,0,7);g.fill();g.fillStyle='#fff';g.beginPath();g.arc(ex+u*.04,ey-u*.05,u*.03,0,7);g.fill();
+  const tl={serious:.3,determined:.5,curious:-.15,confused:-.35,thinking:-.1,smirk:.1}[face]||0,ra2=(face=='curious'&&s>0||face=='confused'&&s<0)?u*.1:0;g.strokeStyle=c.hr;g.lineWidth=u*.07;g.beginPath();g.moveTo(ex-s*u*.15,hdy-u*.22-ra2-s*0+(-s)*tl*u*.0+tl*u*.1*(s>0?-1:-1)*-1);g.lineTo(ex+s*u*.15,hdy-u*.22-ra2+tl*u*.1*(1)*-1+tl*u*.12);g.stroke()}
+ const my=hdy+u*.4;g.strokeStyle='#5a1f1a';g.lineWidth=u*.06;if(talk&&mo>.08){g.fillStyle='#6a1e1e';g.beginPath();g.ellipse(u*.05,my,u*.1+mo*u*.05,u*.03+mo*u*.13,0,0,7);g.fill()}else{g.beginPath();if(face=='smirk'){g.moveTo(-u*.1,my);g.quadraticCurveTo(u*.1,my+u*.12,u*.18,my-u*.04)}else if(face=='serious'||face=='determined'){g.moveTo(-u*.1,my);g.lineTo(u*.14,my)}else{g.moveTo(-u*.1,my);g.quadraticCurveTo(u*.04,my+u*.08,u*.14,my)}g.stroke()}
+ g.restore()}
+// ---------- cards & subtitle ----------
+function card(sc,t,W,H,ss,se){const c=sc.cd;if(!c)return;const ta=ss+(sc.n.indexOf(c.at)/sc.n.length)*(se-ss),en=c.t=='end_card'?1e9:ta+4.2;if(t<ta||t>en+.4)return;
+ const al=Math.min(1,(t-ta)/.4,(en+.4-t)/.4),e=ease(al),big=['title_card','end_card','text'].includes(c.t),fs=W*(big?.075:.05),it=c.it||[],w=W*.86,x=(W-w)/2,h=fs*2.1+(c.sub?fs*.9:0)+it.length*fs*1.3,y=(c.t=='end_card'?H*.28:H*.07)-(1-e)*H*.04;
+ g.save();g.globalAlpha=al;g.shadowColor='rgba(0,0,0,.45)';g.shadowBlur=W*.03;g.shadowOffsetY=W*.01;g.fillStyle='#E7DCC7';rr(x,y,w,h,W*.04);g.fill();g.shadowColor='transparent';
+ const ctr=c.t=='end_card'||c.t=='text';g.textAlign=ctr?'center':'left';g.textBaseline='alphabetic';const tx=ctr?W/2:x+W*.05;g.fillStyle='#26382D';g.font=`800 ${fs}px ${ff}`;g.fillText(c.ti,tx,y+fs*1.3,w-W*.1);
+ g.fillStyle=c.t=='end_card'?'#D69B36':'#9E2525';g.fillRect(ctr?W/2-w*.15:x+W*.05,y+fs*1.5,w*.3,W*.01);
+ let yy=y+fs*2.6;if(c.sub){g.fillStyle='#263B57';g.font=`500 ${fs*.6}px ${ff}`;g.fillText(c.sub,tx,yy);yy+=fs*.9}
+ const n=Math.min(it.length,Math.floor((t-ta-.5)/.5)+1);g.font=`500 ${fs*.8}px ${ff}`;for(let i=0;i<n;i++){g.fillStyle='#9E2525';g.fillText(c.t=='compare'?'◆':'•',tx,yy);g.fillStyle='#26382D';g.fillText(it[i],tx+fs*.7,yy);yy+=fs*1.3}
+ g.restore()}
+const sgc={};function segs(s){if(sgc[s])return sgc[s];let r;try{r=[...new Intl.Segmenter('th',{granularity:'word'}).segment(s)].map(x=>({s:x.segment,i:x.index}))}catch(e){r=[...s].map((c,i)=>({s:c,i}))}return sgc[s]=r}
+const chk={};function chunks(i){if(chk[i])return chk[i];const sc=S[i];let ps=sc.n.replace(/([?!])/g,'$1|').split(/\||\n+/).map(x=>x.trim()).filter(Boolean),out=[];
+ ps.forEach(p=>{let cur='';p.split(' ').forEach(w=>{if(cur&&(cur+' '+w).length>30){out.push(cur);cur=w}else cur=cur?cur+' '+w:w});if(cur)out.push(cur)});
+ const tot=out.reduce((a,b)=>a+b.length,0);let c=0;return chk[i]=out.map(s=>{const r={s,a:c/tot,b:(c+s.length)/tot};c+=s.length;return r})}
+function sub(sc,i,t,W,H,ss,se){if(t<ss||t>se)return;const f=(t-ss)/(se-ss),ch=chunks(i).find(c=>f>=c.a&&f<c.b)||chunks(i).slice(-1)[0],fs=W*.052;g.font=`800 ${fs}px ${ff}`;g.textAlign='left';g.textBaseline='alphabetic';
+ const m=new Array(ch.s.length).fill(0);sc.hl.forEach(w=>{let k=ch.s.indexOf(w);while(k>=0){for(let j=0;j<w.length;j++)m[k+j]=1;k=ch.s.indexOf(w,k+w.length)}});
+ const tk=segs(ch.s),mw=W*.88,lines=[[]],lw=[0];tk.forEach(o=>{const w=g.measureText(o.s).width;if(lw[lw.length-1]+w>mw&&lines[lines.length-1].length){lines.push([]);lw.push(0)}lines[lines.length-1].push({...o,w});lw[lw.length-1]+=w});
+ const by=H*(W/H<.6?.86:.92)-(lines.length-1)*fs*1.25;g.lineJoin='round';lines.forEach((ln,li)=>{let x=(W-lw[li])/2;const y=by+li*fs*1.25;ln.forEach(o=>{g.strokeStyle='#000';g.lineWidth=fs*.2;g.strokeText(o.s,x,y);g.fillStyle=m[o.i]?'#FFD83A':'#fff';g.fillText(o.s,x,y);x+=o.w})})}
+// ---------- main render ----------
+function draw(t){const W=cv.width,H=cv.height;let i=0;for(let k=0;k<8;k++)if(t>=Bm[k])i=k;const sc=S[i],a=Bm[i],b=Bm[i+1],p=Math.min(1,Math.max(0,(t-a)/(b-a))),ss=i==0?Math.min(t0,b-.5):a,se=i==7?Math.max(t1,ss+1):b;
+ g.save();g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,W,H);const z=sc.cam=='push'?1+.07*p:sc.cam=='push2'?1+.1*p:1.03;g.translate(W/2,H/2);g.scale(z,z);g.translate(-W/2+(sc.cam=='pan'?(.5-p)*W*.05:0),-H/2);
+ bg(sc,t,p,W,H);
+ const ch=sc.cd&&sc.cd.at?0:0,sp=A&&t>=t0&&t<=t1,mo=sp?env[Math.floor(t/.02)]||0:0;
+ sc.a.forEach(([id,x,y,pose,face,fl])=>{let f=face;(sc.ex||[]).forEach(([at,ff2])=>{if(t>=ss+(sc.n.indexOf(at)/sc.n.length)*(se-ss))f=ff2});person(id,x*W,y*H,H*(W>H?.34:.3),pose,f,fl,t,mo,id=='C3')});
+ if(sc.k=='city'||sc.k=='battle')dust(t,W,H,sc.k=='battle'?30:16,sc.k=='battle'?'#d8b78a':'#ffb347');else dust(t,W,H,14,'#ffe9b0');
+ g.restore();const v=g.createRadialGradient(W/2,H/2,Math.min(W,H)*.35,W/2,H/2,Math.max(W,H)*.75);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.55)');g.fillStyle=v;g.fillRect(0,0,W,H);
+ card(sc,t,W,H,ss,se);sub(sc,i,t,W,H,ss,se);
+ const ft=t-a;if(ft<.4){g.fillStyle=`rgba(${sc.flash?'255,255,255':'0,0,0'},${1-ft/.4})`;g.fillRect(0,0,W,H)}
+ if(safe&&!exporting){g.setLineDash([12,8]);g.strokeStyle='#0f0';g.lineWidth=3;g.strokeRect(W*.06,H*.08,W*.88,H*.78);g.setLineDash([])}}
+function ui(){const t=Math.min(T,total);$('tm').textContent=`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')} / ${Math.floor(total/60)}:${String(Math.floor(total%60)).padStart(2,'0')}`;if(document.activeElement!==$('sk'))$('sk').value=t/total*1000;if(exporting){$('pg').value=t/total;msg(`กำลังบันทึก ${Math.round(t/total*100)}% · เฟรมประมาณ ${Math.round(t*30)}/${Math.round(total*30)} · ใช้เวลา ${Math.round((performance.now()-exT)/1000)}s · วิธี: MediaRecorder (${mime})`)}}
+let exT=0,mime='';
+function tick(){if(playing){T=ctx.currentTime-startT;if(T>=total){T=total;if(exporting)finish();else pause(total)}dirty=true}else T=pausedAt;if(dirty){draw(T);dirty=false}ui();requestAnimationFrame(tick)}
+// ---------- export ----------
+function pickMime(){if(!window.MediaRecorder)return'';return['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||''}
+let chunksR=[],url=null,blobR=null;
+$('ex').onclick=async()=>{try{
+ if(!HTMLCanvasElement.prototype.captureStream||!window.MediaRecorder)return msg('เบราว์เซอร์นี้ไม่รองรับ MediaRecorder/captureStream จึงสร้างวิดีโอไม่ได้ ลองใช้ Chrome (Android/Desktop) หรืออัปเดต Safari',1);
+ mime=pickMime();if(!mime)return msg('ไม่พบ MIME type ที่รองรับสำหรับบันทึกวิดีโอ',1);
+ if(!A&&!confirm('ยังไม่ได้นำเข้าเสียงพากย์ วิดีโอจะไม่มีเสียงพูด ดำเนินการต่อ?'))return;
+ if(document.fonts)await document.fonts.ready;const c=ensure();sizeCv(true);exporting=true;cancelled=false;chunksR=[];pause(0);
+ const dest=c.createMediaStreamDestination(),vs=cv.captureStream(30),st=new MediaStream([...vs.getVideoTracks(),...dest.stream.getAudioTracks()]);
+ rec=new MediaRecorder(st,{mimeType:mime,videoBitsPerSecond:cv.width>1200?8e6:5e6});rec.ondataavailable=e=>e.data&&e.data.size&&chunksR.push(e.data);rec.onstop=done;rec.onerror=e=>fail('MediaRecorder ผิดพลาด');
+ try{wl=await navigator.wakeLock?.request('screen')}catch(e){}
+ $('ex').disabled=true;$('cx').hidden=false;$('pg').hidden=false;$('pg').value=0;exT=performance.now();rec.start(500);playFrom(0,dest);
+}catch(e){fail(e.message)}};
+function finish(){pause(total);setTimeout(()=>{if(rec&&rec.state!='inactive')rec.stop()},400)}
+function cleanup(){exporting=false;try{wl&&wl.release()}catch(e){}$('ex').disabled=false;$('cx').hidden=true;$('pg').hidden=true;sizeCv(false)}
+function fail(m){if(rec){rec.onstop=null;try{rec.state!='inactive'&&rec.stop()}catch(e){}}pause(0);cleanup();msg('สร้างวิดีโอไม่สำเร็จ: '+m,1)}
+$('cx').onclick=()=>{cancelled=true;if(rec){rec.onstop=null;try{rec.stop()}catch(e){}}pause(0);cleanup();msg('ยกเลิกการ Export แล้ว')};
+function done(){if(cancelled)return;const ext=mime.startsWith('video/mp4')?'mp4':'webm',type=mime.split(';')[0],w=cv.width,h=cv.height;cleanup();
+ const bl=new Blob(chunksR,{type}),dur=total;if(!bl.size)return msg('ไฟล์ที่ได้ว่างเปล่า สร้างวิดีโอไม่สำเร็จ',1);
+ if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(bl);blobR=bl;fname=`shadows_of_longvek_${w}x${h}.${ext}`;const v=$('vd');
+ v.onerror=()=>msg('ไฟล์ที่ได้เล่นไม่ได้ในเบราว์เซอร์นี้ อาจเสียหาย ลองสร้างใหม่หรือลดความละเอียดเป็น 720p',1);
+ v.onloadedmetadata=()=>{$('rz').hidden=false;msg('สร้างวิดีโอสำเร็จ — ตรวจสอบการเล่นด้านล่างก่อนนำไปใช้');
+  $('ri').textContent=`${fname} · ${(bl.size/1048576).toFixed(2)} MB · ${w}×${h} · ${$('fm').value} · 30 fps · ${type} · ~${dur.toFixed(1)}s`};
+ v.src=url;$('dl').href=url;$('dl').download=fname;v.load()}
+$('sh').onclick=async()=>{const f=new File([blobR],fname,{type:blobR.type});if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]})}catch(e){}}else $('dl').click()};
+// ---------- init ----------
+const caps=[`WebCodecs: ${window.VideoEncoder&&window.AudioEncoder?'มี (ยังไม่ได้ใช้ในเวอร์ชันนี้)':'ไม่มี'}`,`MediaRecorder: ${pickMime()||'ไม่รองรับ'}`,`WebGL: ไม่ได้ใช้ (ฉากทั้งหมดเป็น 2D/2.5D บน Canvas)`,`Share: ${navigator.canShare?'มี':'ไม่มี'}`,`Wake Lock: ${navigator.wakeLock?'มี':'ไม่มี'}`,`Intl.Segmenter: ${window.Intl&&Intl.Segmenter?'มี':'ไม่มี (ใช้ fallback)'}`];
+$('cap').textContent='ความสามารถอุปกรณ์ — '+caps.join(' · ');
+try{compute();sizeCv(false);if(!g)throw 0;tick()}catch(e){document.body.insertAdjacentHTML('afterbegin','<div class="box err">Canvas ใช้งานไม่ได้ในเบราว์เซอร์นี้ กรุณาลองเบราว์เซอร์อื่น</div>')}
+</script></body></html>
